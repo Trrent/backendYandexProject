@@ -1,1 +1,1 @@
-from . import offers, category, history
+from . import offer, category, history
