@@ -13,4 +13,4 @@ class History(SqlAlchemyBase):
     price = sqlalchemy.Column(sqlalchemy.FLOAT, nullable=True)
     modified_date = sqlalchemy.Column(sqlalchemy.DateTime, default=datetime.datetime.now().isoformat())
 
-    children = orm.relationship("Offer")
+    offer = orm.relationship("Offer")

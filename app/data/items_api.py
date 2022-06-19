@@ -1,3 +1,5 @@
+import datetime
+
 from flask import Blueprint, request, jsonify
 from flask_restful import abort
 import json
@@ -103,7 +105,7 @@ def get_nodes(id):
         abort(400)
 
 
-@blueprint.route('/delete/<string:id>', methods=['GET'])
+@blueprint.route('/delete/<string:id>', methods=['DELETE'])
 def delete_node(id):
     try:
         session = db_session.create_session()
@@ -119,6 +121,28 @@ def delete_node(id):
         session.commit()
         update_category_price(parent_id, None)
         return jsonify({'success': 'OK'})
+    except Exception as e:
+        abort(400)
+
+
+@blueprint.route('/sales', methods=['GET'])
+def get_sales():
+    try:
+        query = request.args["date"]
+        if not validate_iso8601(query):
+            abort(400)
+        response = []
+        date = get_date(query)
+        last_date = date - datetime.timedelta(hours=24)
+        session = db_session.create_session()
+        items = session.query(History).filter(History.operation == "update").all()
+        for item in items:
+            item_date = item.modified_date
+            if last_date <= item_date <= date:
+                item_info = item.offer.get_info()
+                if item_info not in response:
+                    response.append(item_info)
+        return jsonify({'items': response})
     except Exception as e:
         abort(400)
 
