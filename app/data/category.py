@@ -13,5 +13,16 @@ class Category(SqlAlchemyBase, SerializerMixin):
     parent_id = sqlalchemy.Column(sqlalchemy.String, sqlalchemy.ForeignKey("category.category_id"), nullable=True)
     date = sqlalchemy.Column(sqlalchemy.DateTime, default=datetime.datetime.now())
 
+    def get_info(self):
+        return {
+            "type": "CATEGORY",
+            "name": self.name,
+            "id": self.category_id,
+            "parentId": self.parent_id,
+            "price": self.price,
+            "date": self.date.isoformat(),
+            "childrens": []
+        }
+
     def __repr__(self):
         return f"Category: {self.name}"

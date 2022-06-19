@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_restful import abort
+import json
 
 from . import db_session
 from .offer import Offer
@@ -21,6 +22,16 @@ def unauthorized(error):
         "message": "Validation Failed"
     })
     response.status_code = 400
+    return response
+
+
+@blueprint.errorhandler(400)
+def not_found(error):
+    response = jsonify({
+        "code": 404,
+        "message": "Item not found"
+    })
+    response.status_code = 404
     return response
 
 
@@ -67,16 +78,49 @@ def imports():
                 session.commit()
             else:
                 abort(400)
-        update_category_price()
+        update_category_price(it.parent_id, date)
         return jsonify({'success': 'OK'})
     except Exception as e:
-        print(e)
         abort(400)
 
 
-@blueprint.route('/api/nodes')
-def get_nodes():
-    return "Обработчик в items_api"
+@blueprint.route('/nodes/<string:id>', methods=['GET'])
+def get_nodes(id):
+    try:
+        session = db_session.create_session()
+        item = session.query(Category).filter(Category.category_id == id).first()
+        if not item:
+            item = session.query(Offer).filter(Offer.offer_id == id).first()
+            if not item:
+                abort(404)
+            else:
+                return jsonify(item.get_info())
+        else:
+            category_info = item.get_info()
+            category_info["childrens"].extend(get_category_info(id))
+            return json.dumps(category_info)
+    except Exception as e:
+        abort(400)
+
+
+@blueprint.route('/delete/<string:id>', methods=['GET'])
+def delete_node(id):
+    try:
+        session = db_session.create_session()
+        item = session.query(Category).filter(Category.category_id == id).first()
+        if not item:
+            item = session.query(Offer).filter(Offer.offer_id == id).first()
+            if not item:
+                abort(404)
+        else:
+            delete_children(id)
+        parent_id = item.parent_id
+        session.delete(item)
+        session.commit()
+        update_category_price(parent_id, None)
+        return jsonify({'success': 'OK'})
+    except Exception as e:
+        abort(400)
 
 
 def add_history_record(offer_id, price, date):
@@ -91,24 +135,61 @@ def add_history_record(offer_id, price, date):
     session.commit()
 
 
-def update_category_price():
-    def update_price(parent_id=None):
-        categories = session.query(Category).filter(Category.parent_id == parent_id).all()
-        category_price, category_count = 0, 0
-        for category in categories:
-            price, count = 0, 0
-            subcategories = session.query(Category).filter(Category.parent_id == category.category_id).all()
-            if subcategories:
-                f = update_price(parent_id=category.category_id)
-                price, count = price + f[0], f[1]
-            offers = session.query(Offer).filter(Offer.parent_id == category.category_id).all()
-            for offer in offers:
-                price += offer.price
-                count += 1
-            category.price = price // count
+def delete_children(id):
+    def delete(parent_id):
+        subcategories = session.query(Category).filter(Category.parent_id == parent_id).all()
+        for subcategory in subcategories:
+            session.delete(subcategory)
             session.commit()
-            category_price, category_count = category_price + price, category_count + count
-        return category_price, category_count
+            delete(subcategory.category_id)
+        offers = session.query(Offer).filter(Offer.parent_id == parent_id).all()
+        for offer in offers:
+            session.delete(offer)
+            session.commit()
+        return
 
     session = db_session.create_session()
-    update_price()
+    delete(id)
+
+
+def get_category_info(id):
+    def get_children(id):
+        children = []
+        subcategories = session.query(Category).filter(Category.parent_id == id).all()
+        for subcategory in subcategories:
+            subcategory_info = subcategory.get_info()
+            subcategory_info["childrens"] = get_children(subcategory.category_id)
+            children.append(subcategory_info)
+        offers = session.query(Offer).filter(Offer.parent_id == id).all()
+        for offer in offers:
+            children.append(offer.get_info())
+        return children
+
+    session = db_session.create_session()
+    children = get_children(id)
+    return children
+
+
+def update_category_price(parent_id, date):
+    def update_price(id):
+        if id:
+            category = session.query(Category).filter(Category.category_id == id).first()
+            category_price, category_count = 0, 0
+            subcategories = session.query(Category).filter(Category.parent_id == category.category_id).all()
+            for subcategory in subcategories:
+                category_price, category_count = category_price + subcategory.price, category_count + 1
+            offers = session.query(Offer).filter(Offer.parent_id == category.category_id).all()
+            for offer in offers:
+                category_price, category_count = category_price + offer.price, category_count + 1
+            if category_count > 0:
+                category.price = category_price // category_count
+            else:
+                category.price = None
+            if date:
+                category.date = date
+            session.commit()
+            update_price(category.parent_id)
+        return
+
+    session = db_session.create_session()
+    update_price(parent_id)
