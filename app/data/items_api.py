@@ -2,7 +2,6 @@ import datetime
 
 from flask import Blueprint, request, jsonify
 from flask_restful import abort
-import json
 
 from . import db_session
 from .offer import Offer
@@ -100,7 +99,7 @@ def get_nodes(id):
         else:
             category_info = item.get_info()
             category_info["childrens"].extend(get_category_info(id))
-            return json.dumps(category_info)
+            return jsonify(category_info)
     except Exception as e:
         abort(400)
 
@@ -135,7 +134,7 @@ def get_sales():
         date = get_date(query)
         last_date = date - datetime.timedelta(hours=24)
         session = db_session.create_session()
-        items = session.query(History).filter(History.operation == "update").all()
+        items = session.query(History).all()
         for item in items:
             item_date = item.modified_date
             if last_date <= item_date <= date:
@@ -147,6 +146,47 @@ def get_sales():
         abort(400)
 
 
+@blueprint.route('/node/<string:id>/statistic', methods=['GET'])
+def get_node_statistic(id):
+    try:
+        dateStart = request.args["dateStart"]
+        if not validate_iso8601(dateStart):
+            abort(400)
+        dateEnd = request.args["dateEnd"]
+        if not validate_iso8601(dateEnd):
+            abort(400)
+        response = []
+        dateStart = get_date(dateStart)
+        dateEnd = get_date(dateEnd)
+        session = db_session.create_session()
+        item = session.query(Category).filter(Category.category_id == id).first()
+        if not item:
+            item = session.query(Offer).filter(Offer.offer_id == id).first()
+            if not item:
+                abort(404)
+            else:
+                history_list = session.query(History).filter(History.offer_id == id,
+                                                             History.operation == "update").all()
+                for offer in history_list:
+                    offer_date = offer.modified_date
+                    if dateStart <= offer_date < dateEnd:
+                        item_info = {"type": "OFFER", "id": item.offer_id, "price": item.price,
+                                     "updateDate": offer_date.isoformat()}
+                        if item_info not in response:
+                            response.append(item_info)
+                return jsonify({'history': response})
+        else:
+            category_info = {"type": "CATEGORY", "name": item.name, "id": item.category_id, "price": item.price,
+                             "updateDate": item.date.isoformat(), "history": []}
+            category_history = get_category_history(id, dateStart, dateEnd)
+            if category_history:
+                category_info["history"] = category_history
+                return jsonify(category_info)
+        return jsonify(items=[])
+    except Exception as e:
+        abort(400)
+
+
 def add_history_record(offer_id, price, date):
     session = db_session.create_session()
     offer = session.query(Offer).filter(Offer.offer_id == offer_id).first()
@@ -154,7 +194,7 @@ def add_history_record(offer_id, price, date):
     if offer:
         history.operation = 'modified' if offer.price != price else 'update'
     else:
-        history.operation = 'modified'
+        history.operation = 'update'
     session.add(history)
     session.commit()
 
@@ -174,6 +214,35 @@ def delete_children(id):
 
     session = db_session.create_session()
     delete(id)
+
+
+def get_category_history(id, dateStart, dateEnd):
+    def get_history(id):
+        history = []
+        subcategories = session.query(Category).filter(Category.parent_id == id).all()
+        for subcategory in subcategories:
+            subcategory_info = {"type": "CATEGORY", "name": subcategory.name, "id": subcategory.category_id, "price": subcategory.price,
+                                "updateDate": subcategory.date.isoformat(),
+                                "history": []}
+            subcategory_history = get_history(subcategory.category_id)
+            if subcategory_history:
+                subcategory_info["history"] = subcategory_history
+                history.append(subcategory_info)
+        offers = session.query(Offer).filter(Offer.parent_id == id).all()
+        for item in offers:
+            history_list = session.query(History).filter(History.offer_id == item.offer_id,
+                                                         History.operation == "update").all()
+            for offer in history_list:
+                offer_date = offer.modified_date
+                if dateStart <= offer_date < dateEnd:
+                    item_info = {"type": "OFFER", "name": item.name, "id": item.offer_id, "price": item.price,
+                                 "updateDate": offer_date.isoformat()}
+                    history.append(item_info)
+        return history
+
+    session = db_session.create_session()
+    history = get_history(id)
+    return history
 
 
 def get_category_info(id):
@@ -201,7 +270,9 @@ def update_category_price(parent_id, date):
             category_price, category_count = 0, 0
             subcategories = session.query(Category).filter(Category.parent_id == category.category_id).all()
             for subcategory in subcategories:
-                category_price, category_count = category_price + subcategory.price, category_count + 1
+                offers = session.query(Offer).filter(Offer.parent_id == subcategory.category_id).all()
+                offers_price = sum([it.price for it in offers])
+                category_price, category_count = category_price + offers_price, category_count + len(offers)
             offers = session.query(Offer).filter(Offer.parent_id == category.category_id).all()
             for offer in offers:
                 category_price, category_count = category_price + offer.price, category_count + 1
