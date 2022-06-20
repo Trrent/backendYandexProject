@@ -1,3 +1,5 @@
+"""Модель таблицы offer с данными о товарах"""
+
 import datetime
 import sqlalchemy
 from .db_session import SqlAlchemyBase
@@ -18,8 +20,8 @@ class Offer(SqlAlchemyBase, SerializerMixin):
                 "name": self.name,
                 "id": self.offer_id,
                 "parentId": self.parent_id,
-                "price": self.price,
-                "date": self.date.isoformat(),
+                "price": int(self.price),
+                "date": f"{self.date.isoformat()}.{str(self.date.microsecond).zfill(3)}Z",
                 "childrens": None,
                 }
 

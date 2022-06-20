@@ -1,3 +1,5 @@
+"""Модель таблицы category с данными о категориях"""
+
 import datetime
 import sqlalchemy
 from .db_session import SqlAlchemyBase
@@ -19,8 +21,8 @@ class Category(SqlAlchemyBase, SerializerMixin):
             "name": self.name,
             "id": self.category_id,
             "parentId": self.parent_id,
-            "price": self.price,
-            "date": self.date.isoformat(),
+            "price": int(self.price),
+            "date": f"{self.date.isoformat()}.{str(self.date.microsecond).zfill(3)}Z",
             "childrens": []
         }
 

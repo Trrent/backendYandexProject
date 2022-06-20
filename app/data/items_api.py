@@ -1,3 +1,5 @@
+"""Handler'ы для обработки запросов к API и ошибок"""
+
 import datetime
 
 from flask import Blueprint, request, jsonify
@@ -188,6 +190,7 @@ def get_node_statistic(id):
 
 
 def add_history_record(offer_id, price, date):
+    """Добавляет в таблицу history запись об изменении товара"""
     session = db_session.create_session()
     offer = session.query(Offer).filter(Offer.offer_id == offer_id).first()
     history = History(offer_id=offer_id, price=price, modified_date=date)
@@ -200,6 +203,8 @@ def add_history_record(offer_id, price, date):
 
 
 def delete_children(id):
+    """Рекурсивно удаляет потомков категории"""
+
     def delete(parent_id):
         subcategories = session.query(Category).filter(Category.parent_id == parent_id).all()
         for subcategory in subcategories:
@@ -217,11 +222,14 @@ def delete_children(id):
 
 
 def get_category_history(id, dateStart, dateEnd):
+    """Рекурсивно выводит историю изменения категории и её потомков"""
+
     def get_history(id):
         history = []
         subcategories = session.query(Category).filter(Category.parent_id == id).all()
         for subcategory in subcategories:
-            subcategory_info = {"type": "CATEGORY", "name": subcategory.name, "id": subcategory.category_id, "price": subcategory.price,
+            subcategory_info = {"type": "CATEGORY", "name": subcategory.name, "id": subcategory.category_id,
+                                "price": subcategory.price,
                                 "updateDate": subcategory.date.isoformat(),
                                 "history": []}
             subcategory_history = get_history(subcategory.category_id)
@@ -246,6 +254,8 @@ def get_category_history(id, dateStart, dateEnd):
 
 
 def get_category_info(id):
+    """Рекурсивно выводит информацию о категории и её потомков"""
+
     def get_children(id):
         children = []
         subcategories = session.query(Category).filter(Category.parent_id == id).all()
@@ -264,6 +274,8 @@ def get_category_info(id):
 
 
 def update_category_price(parent_id, date):
+    """Рекурсивно обновляет цену категории"""
+
     def update_price(id):
         if id:
             category = session.query(Category).filter(Category.category_id == id).first()

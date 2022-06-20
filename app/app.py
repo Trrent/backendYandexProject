@@ -15,13 +15,8 @@ config.read("settings.ini")
 app.config["SECRET_KEY"] = config.get("settings", "secret_key")
 
 
-@app.route('/')
-def hello_world():
-    return 'Hello World!'
-
-
 def main():
-    app.run(port=8080, debug=True)
+    app.run(debug=True)
 
 
 if __name__ == '__main__':
