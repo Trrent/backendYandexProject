@@ -3,9 +3,10 @@ from data import db_session, items_api
 import logging
 from configparser import ConfigParser
 
-db_session.global_init("app/db/offers.db")
+db_session.global_init("db/offers.db")
 app = Flask(__name__)
 
+app.config["JSON_AS_ASCII"] = False
 app.register_blueprint(items_api.blueprint)
 
 app.logger.setLevel(logging.INFO)
