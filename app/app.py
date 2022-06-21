@@ -17,7 +17,7 @@ app.config["SECRET_KEY"] = config.get("settings", "secret_key")
 
 
 def main():
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=80, debug=True)
 
 
 if __name__ == '__main__':
