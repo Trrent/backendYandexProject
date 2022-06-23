@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_swagger_ui import get_swaggerui_blueprint
 from data import db_session, items_api
 import logging
 from configparser import ConfigParser
@@ -15,10 +16,18 @@ config = ConfigParser()
 config.read("settings.ini")
 app.config["SECRET_KEY"] = config.get("settings", "secret_key")
 
+SWAGGER_URL = '/docs'
+API_URL = '/static/openapi.yaml'
 
-def main():
-    app.run(host="0.0.0.0", port=80, debug=True)
+swagger_ui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': 'Mega Market Open API'
+    }
+)
 
+app.register_blueprint(swagger_ui_blueprint, url_prefix=SWAGGER_URL)
 
 if __name__ == '__main__':
-    main()
+    app.run(host="0.0.0.0", debug=True)
